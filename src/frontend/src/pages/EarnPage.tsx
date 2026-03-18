@@ -18,6 +18,9 @@ const CATEGORY_COLORS: Record<string, string> = {
   health: "bg-emerald-50 text-emerald-700 border-emerald-200",
 };
 
+// Fixed reward per ad watch
+const AD_WATCH_REWARD = 100;
+
 export function EarnPage() {
   const { data: ads, isLoading } = useAds();
   const [watchingAd, setWatchingAd] = useState<Ad | null>(null);
@@ -44,7 +47,11 @@ export function EarnPage() {
       >
         <h1 className="text-2xl font-bold text-foreground mb-1">Earn Points</h1>
         <p className="text-muted-foreground text-sm mb-6">
-          Browse available ads and start earning.
+          Watch ads and earn{" "}
+          <span className="font-semibold text-foreground">
+            {AD_WATCH_REWARD} points
+          </span>{" "}
+          per ad.
         </p>
 
         {/* Filters */}
@@ -130,7 +137,7 @@ export function EarnPage() {
                           <Tv2 className="w-3.5 h-3.5 text-muted-foreground" />
                         )}
                         <span className="text-sm font-bold text-success">
-                          +{Number(ad.rewardPoints)} pts
+                          +{AD_WATCH_REWARD} pts
                         </span>
                       </div>
                     </div>

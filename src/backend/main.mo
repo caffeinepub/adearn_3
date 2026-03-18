@@ -69,6 +69,11 @@ actor {
     timestamp : Int;
   };
 
+  // Fixed reward per ad watch
+  let AD_WATCH_REWARD : Nat = 100;
+  // Minimum withdrawal amount
+  let MIN_WITHDRAWAL : Nat = 5000;
+
   // Variables with persistent state
   var currentAdId = 1;
   var currentRedemptionId = 1;
@@ -140,18 +145,21 @@ actor {
 
     userAds.add(adId, now);
 
+    // Always award fixed 100 points per ad watch
+    let reward = AD_WATCH_REWARD;
+
     let currentProfile = switch (persistentProfiles.get(caller)) {
       case (null) {
         {
           username = caller.toText();
-          totalPoints = ad.rewardPoints;
-          balance = ad.rewardPoints;
+          totalPoints = reward;
+          balance = reward;
           adsWatched = 1;
           redemptions = [];
           _adsHistory = [{
             adId;
             title = ad.title;
-            points = ad.rewardPoints;
+            points = reward;
             timestamp = now;
           }];
         };
@@ -160,13 +168,13 @@ actor {
         let newHistory = [{
           adId;
           title = ad.title;
-          points = ad.rewardPoints;
+          points = reward;
           timestamp = now;
         }];
         {
           profile with
-          totalPoints = profile.totalPoints + ad.rewardPoints;
-          balance = profile.balance + ad.rewardPoints;
+          totalPoints = profile.totalPoints + reward;
+          balance = profile.balance + reward;
           adsWatched = profile.adsWatched + 1;
           _adsHistory = newHistory.concat(profile._adsHistory);
         };
@@ -284,6 +292,10 @@ actor {
     let profile = switch (persistentProfiles.get(caller)) {
       case (null) { Runtime.trap("Profile not found") };
       case (?p) { p };
+    };
+
+    if (amount < MIN_WITHDRAWAL) {
+      Runtime.trap("Minimum withdrawal is 5000 points");
     };
 
     if (amount > profile.balance) {

@@ -16,6 +16,8 @@ import {
   useUpiWithdrawals,
 } from "../hooks/useQueries";
 
+const MIN_WITHDRAWAL = 5000;
+
 const STATUS_STYLES: Record<string, string> = {
   pending: "bg-amber-50 text-amber-700 border-amber-200",
   approved: "bg-green-50 text-green-700 border-green-200",
@@ -39,8 +41,8 @@ export function RewardsPage() {
       toast.error("Enter a valid UPI ID");
       return;
     }
-    if (!amount || amount < 100) {
-      toast.error("Minimum 100 points required");
+    if (!amount || amount < MIN_WITHDRAWAL) {
+      toast.error(`Minimum ${MIN_WITHDRAWAL.toLocaleString()} points required`);
       return;
     }
     if (amount > balance) {
@@ -112,8 +114,11 @@ export function RewardsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Withdraw your points directly to your UPI account. Minimum 100
-              points required.
+              Withdraw your points directly to your UPI account. Minimum{" "}
+              <span className="font-semibold text-foreground">
+                {MIN_WITHDRAWAL.toLocaleString()} points
+              </span>{" "}
+              required.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
               <div>
@@ -136,8 +141,8 @@ export function RewardsPage() {
                 <Input
                   id="upi-amount"
                   type="number"
-                  placeholder="100"
-                  min={100}
+                  placeholder={String(MIN_WITHDRAWAL)}
+                  min={MIN_WITHDRAWAL}
                   max={balance}
                   value={upiAmount}
                   onChange={(e) => setUpiAmount(e.target.value)}
@@ -146,7 +151,7 @@ export function RewardsPage() {
                 />
               </div>
             </div>
-            {upiAmount && Number.parseInt(upiAmount) >= 100 && (
+            {upiAmount && Number.parseInt(upiAmount) >= MIN_WITHDRAWAL && (
               <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <DollarSign className="w-3 h-3" />
                 {Number.parseInt(upiAmount)} pts = ₹
@@ -162,7 +167,7 @@ export function RewardsPage() {
                 submitWithdrawal.isPending ||
                 !upiId.trim() ||
                 !upiAmount ||
-                Number.parseInt(upiAmount) < 100 ||
+                Number.parseInt(upiAmount) < MIN_WITHDRAWAL ||
                 Number.parseInt(upiAmount) > balance
               }
               data-ocid="rewards.upi_withdraw.primary_button"
