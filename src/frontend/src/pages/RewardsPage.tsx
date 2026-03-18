@@ -1,50 +1,46 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowRight, DollarSign, Gift, Loader2, Star } from "lucide-react";
+import { DollarSign, Loader2, Smartphone, Star } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { RedemptionType } from "../backend.d";
-import { useProfile, useRedeemPoints } from "../hooks/useQueries";
+import { Variant_pending_approved_rejected } from "../backend.d";
+import {
+  useProfile,
+  useSubmitUpiWithdrawal,
+  useUpiWithdrawals,
+} from "../hooks/useQueries";
 
-const GIFT_CARDS = [
-  { brand: "Amazon", value: 1000, label: "$10 Gift Card" },
-  { brand: "Netflix", value: 2000, label: "$20 Gift Card" },
-  { brand: "Steam", value: 1500, label: "$15 Game Credit" },
-  { brand: "Apple", value: 2500, label: "$25 App Store" },
-];
+const STATUS_STYLES: Record<string, string> = {
+  pending: "bg-amber-50 text-amber-700 border-amber-200",
+  approved: "bg-green-50 text-green-700 border-green-200",
+  rejected: "bg-red-50 text-red-700 border-red-200",
+};
 
 export function RewardsPage() {
   const { data: profile, isLoading } = useProfile();
-  const redeem = useRedeemPoints();
-  const [redeemDialog, setRedeemDialog] = useState<{
-    type: RedemptionType;
-    label: string;
-    amount: number;
-  } | null>(null);
-  const [cashoutAmount, setCashoutAmount] = useState("");
+  const { data: withdrawals, isLoading: withdrawalsLoading } =
+    useUpiWithdrawals();
+  const submitWithdrawal = useSubmitUpiWithdrawal();
+
+  const [upiId, setUpiId] = useState("");
+  const [upiAmount, setUpiAmount] = useState("");
 
   const balance = profile ? Number(profile.totalPoints) : 0;
 
-  async function handleRedeem() {
-    if (!redeemDialog) return;
-    const amount =
-      redeemDialog.type === RedemptionType.cashout
-        ? Number.parseInt(cashoutAmount)
-        : redeemDialog.amount;
-    if (!amount || amount <= 0) {
-      toast.error("Enter a valid amount");
+  async function handleUpiWithdraw() {
+    const amount = Number.parseInt(upiAmount);
+    if (!upiId.trim()) {
+      toast.error("Enter a valid UPI ID");
+      return;
+    }
+    if (!amount || amount < 100) {
+      toast.error("Minimum 100 points required");
       return;
     }
     if (amount > balance) {
@@ -52,15 +48,17 @@ export function RewardsPage() {
       return;
     }
     try {
-      await redeem.mutateAsync({
-        type: redeemDialog.type,
+      await submitWithdrawal.mutateAsync({
+        upiId: upiId.trim(),
         amount: BigInt(amount),
       });
-      toast.success(`Redeemed ${amount} points for ${redeemDialog.label}!`);
-      setRedeemDialog(null);
-      setCashoutAmount("");
+      toast.success(
+        "Withdrawal request submitted! Admin will process it soon.",
+      );
+      setUpiId("");
+      setUpiAmount("");
     } catch {
-      toast.error("Redemption failed. Please try again.");
+      toast.error("Failed to submit withdrawal. Please try again.");
     }
   }
 
@@ -75,7 +73,7 @@ export function RewardsPage() {
         <div>
           <h1 className="text-2xl font-bold text-foreground mb-1">Rewards</h1>
           <p className="text-muted-foreground text-sm">
-            Redeem your points for gift cards or cash.
+            Redeem your points via UPI cash out.
           </p>
         </div>
 
@@ -104,114 +102,136 @@ export function RewardsPage() {
           </CardContent>
         </Card>
 
-        {/* Gift Cards */}
-        <div>
-          <h2 className="text-base font-semibold text-foreground mb-4">
-            Gift Cards
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {GIFT_CARDS.map((gc, idx) => (
-              <Card
-                key={gc.brand}
-                className="shadow-card hover:shadow-md transition-shadow"
-                data-ocid={`rewards.giftcard.item.${idx + 1}`}
-              >
-                <CardContent className="pt-5 pb-5">
-                  <div className="flex flex-col gap-3">
-                    <div className="w-10 h-10 bg-accent rounded-xl flex items-center justify-center">
-                      <Gift className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm">{gc.brand}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {gc.label}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="text-xs">
-                        {gc.value} pts
-                      </Badge>
-                      <Button
-                        size="sm"
-                        variant={balance >= gc.value ? "default" : "outline"}
-                        disabled={balance < gc.value}
-                        onClick={() =>
-                          setRedeemDialog({
-                            type: RedemptionType.giftcard,
-                            label: `${gc.brand} ${gc.label}`,
-                            amount: gc.value,
-                          })
-                        }
-                        data-ocid="rewards.redeem.primary_button"
-                      >
-                        Redeem <ArrowRight className="w-3 h-3 ml-1" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-
-        {/* Cashout */}
+        {/* UPI Cash Out */}
         <Card className="shadow-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-success" />
-              Cash Out
+              <Smartphone className="w-4 h-4 text-primary" />
+              UPI Cash Out
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Withdraw your points directly to your UPI account. Minimum 100
+              points required.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+              <div>
+                <Label htmlFor="upi-id" className="text-xs">
+                  UPI ID
+                </Label>
+                <Input
+                  id="upi-id"
+                  placeholder="yourname@upi"
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                  className="mt-1"
+                  data-ocid="rewards.upi_id.input"
+                />
+              </div>
+              <div>
+                <Label htmlFor="upi-amount" className="text-xs">
+                  Amount (points)
+                </Label>
+                <Input
+                  id="upi-amount"
+                  type="number"
+                  placeholder="100"
+                  min={100}
+                  max={balance}
+                  value={upiAmount}
+                  onChange={(e) => setUpiAmount(e.target.value)}
+                  className="mt-1"
+                  data-ocid="rewards.upi_amount.input"
+                />
+              </div>
+            </div>
+            {upiAmount && Number.parseInt(upiAmount) >= 100 && (
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                <DollarSign className="w-3 h-3" />
+                {Number.parseInt(upiAmount)} pts = ₹
+                {(Number.parseInt(upiAmount) / 100).toFixed(2)}
+                <span className="ml-2 text-muted-foreground/70">
+                  (100 points = ₹1)
+                </span>
+              </p>
+            )}
+            <Button
+              onClick={handleUpiWithdraw}
+              disabled={
+                submitWithdrawal.isPending ||
+                !upiId.trim() ||
+                !upiAmount ||
+                Number.parseInt(upiAmount) < 100 ||
+                Number.parseInt(upiAmount) > balance
+              }
+              data-ocid="rewards.upi_withdraw.primary_button"
+            >
+              {submitWithdrawal.isPending && (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              )}
+              Request Withdrawal
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* My Withdrawal Requests */}
+        <Card className="shadow-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">
+              My Withdrawal Requests
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
-              Convert your points to cash. Minimum 500 points required.
-            </p>
-            <div className="flex gap-3 max-w-sm">
-              <div className="flex-1">
-                <Label htmlFor="cashout" className="text-xs">
-                  Points to redeem
-                </Label>
-                <Input
-                  id="cashout"
-                  type="number"
-                  placeholder="500"
-                  min={500}
-                  max={balance}
-                  value={cashoutAmount}
-                  onChange={(e) => setCashoutAmount(e.target.value)}
-                  className="mt-1"
-                  data-ocid="rewards.cashout.input"
-                />
+            {withdrawalsLoading ? (
+              [1, 2].map((i) => (
+                <Skeleton key={i} className="h-12 w-full mb-2" />
+              ))
+            ) : (withdrawals ?? []).length > 0 ? (
+              <div className="space-y-2">
+                {(withdrawals ?? []).map((req, idx) => (
+                  <div
+                    key={String(req.id)}
+                    className="flex items-center justify-between py-2.5 px-3 rounded-lg border border-border"
+                    data-ocid={`rewards.withdrawal.item.${idx + 1}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Smartphone className="w-4 h-4 text-primary" />
+                      <div>
+                        <p className="text-sm font-medium">{req.upiId}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(
+                            Number(req.timestamp) / 1_000_000,
+                          ).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold">
+                        {Number(req.amount)} pts
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs capitalize ${STATUS_STYLES[req.status] ?? ""}`}
+                      >
+                        {req.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-end">
-                <Button
-                  disabled={
-                    !cashoutAmount ||
-                    Number.parseInt(cashoutAmount) < 500 ||
-                    Number.parseInt(cashoutAmount) > balance
-                  }
-                  onClick={() =>
-                    setRedeemDialog({
-                      type: RedemptionType.cashout,
-                      label: "Cash Out",
-                      amount: Number.parseInt(cashoutAmount),
-                    })
-                  }
-                  data-ocid="rewards.cashout.primary_button"
-                >
-                  Cash Out
-                </Button>
-              </div>
-            </div>
-            {cashoutAmount && Number.parseInt(cashoutAmount) >= 500 && (
-              <p className="text-xs text-muted-foreground mt-2">
-                \u2248 ${(Number.parseInt(cashoutAmount) / 100).toFixed(2)} USD
+            ) : (
+              <p
+                className="text-sm text-muted-foreground text-center py-6"
+                data-ocid="rewards.withdrawals.empty_state"
+              >
+                No withdrawal requests yet.
               </p>
             )}
           </CardContent>
         </Card>
 
-        {/* Redemption history */}
+        {/* Redemption history (existing) */}
         <Card className="shadow-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold">
@@ -231,11 +251,7 @@ export function RewardsPage() {
                   data-ocid={`rewards.history.item.${idx + 1}`}
                 >
                   <div className="flex items-center gap-2">
-                    {r._type === RedemptionType.cashout ? (
-                      <DollarSign className="w-4 h-4 text-success" />
-                    ) : (
-                      <Gift className="w-4 h-4 text-primary" />
-                    )}
+                    <DollarSign className="w-4 h-4 text-success" />
                     <div>
                       <p className="text-sm font-medium capitalize">
                         {r._type}
@@ -263,41 +279,6 @@ export function RewardsPage() {
           </CardContent>
         </Card>
       </motion.div>
-
-      {/* Redeem confirm dialog */}
-      <Dialog
-        open={!!redeemDialog}
-        onOpenChange={(v) => !v && setRedeemDialog(null)}
-      >
-        <DialogContent data-ocid="rewards.redeem.dialog">
-          <DialogHeader>
-            <DialogTitle>Confirm Redemption</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Redeem <strong>{redeemDialog?.amount} points</strong> for{" "}
-            <strong>{redeemDialog?.label}</strong>?
-          </p>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setRedeemDialog(null)}
-              data-ocid="rewards.redeem.cancel_button"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleRedeem}
-              disabled={redeem.isPending}
-              data-ocid="rewards.redeem.confirm_button"
-            >
-              {redeem.isPending && (
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              )}
-              Confirm
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </main>
   );
 }

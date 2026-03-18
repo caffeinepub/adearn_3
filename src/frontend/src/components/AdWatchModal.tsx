@@ -34,6 +34,7 @@ export function AdWatchModal({ ad, open, onClose }: AdWatchModalProps) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const watchAd = useWatchAd();
   const colorClass = AD_COLORS[Number(ad?.id ?? 0) % AD_COLORS.length];
+  const hasVideo = !!ad?.videoUrl;
 
   useEffect(() => {
     if (!open || !ad) return;
@@ -41,6 +42,7 @@ export function AdWatchModal({ ad, open, onClose }: AdWatchModalProps) {
     setCompleted(false);
   }, [open, ad]);
 
+  // Timer: used as fallback for video ads too (in case video ends early or no events)
   useEffect(() => {
     if (!open || completed) return;
     intervalRef.current = setInterval(() => {
@@ -71,6 +73,11 @@ export function AdWatchModal({ ad, open, onClose }: AdWatchModalProps) {
 
   const progress = ad ? ((duration - timeLeft) / duration) * 100 : 0;
 
+  // Determine if the video URL is a YouTube embed URL
+  function isYouTubeEmbed(url: string) {
+    return url.includes("youtube.com/embed") || url.includes("youtu.be");
+  }
+
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-lg" data-ocid="adwatch.dialog">
@@ -88,44 +95,85 @@ export function AdWatchModal({ ad, open, onClose }: AdWatchModalProps) {
           </DialogTitle>
         </DialogHeader>
 
-        {/* Ad Placeholder */}
-        <div
-          className={`relative rounded-xl bg-gradient-to-br ${colorClass} aspect-video flex flex-col items-center justify-center text-white overflow-hidden`}
-        >
-          <AnimatePresence mode="wait">
-            {completed ? (
-              <motion.div
-                key="done"
-                initial={{ scale: 0.5, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                className="flex flex-col items-center gap-2"
-              >
-                <CheckCircle className="w-16 h-16" />
-                <p className="text-xl font-bold">Ad Complete!</p>
-              </motion.div>
+        {/* Ad Content */}
+        {hasVideo && ad?.videoUrl ? (
+          <div className="relative rounded-xl overflow-hidden aspect-video bg-black">
+            {isYouTubeEmbed(ad.videoUrl) ? (
+              <iframe
+                src={ad.videoUrl}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={ad.title}
+              />
             ) : (
-              <motion.div
-                key="ad"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex flex-col items-center gap-3 px-8 text-center"
-              >
-                <p className="text-xs uppercase tracking-widest opacity-70">
-                  Sponsored
-                </p>
-                <p className="text-2xl font-bold">{ad?.title}</p>
-                <p className="text-sm opacity-80">{ad?.description}</p>
-                <p className="text-xs opacity-60 mt-1">{ad?.category}</p>
-              </motion.div>
+              // Direct video file
+              // biome-ignore lint/a11y/useMediaCaption: ad video does not require captions
+              <video
+                src={ad.videoUrl}
+                className="w-full h-full object-cover"
+                autoPlay
+                controls
+                onEnded={() => setCompleted(true)}
+              />
             )}
-          </AnimatePresence>
+            {!completed && (
+              <div className="absolute bottom-3 right-3 bg-black/60 rounded-full px-2.5 py-0.5 text-sm font-mono font-bold text-white">
+                {timeLeft}s
+              </div>
+            )}
+            {completed && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                <motion.div
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="flex flex-col items-center gap-2 text-white"
+                >
+                  <CheckCircle className="w-16 h-16" />
+                  <p className="text-xl font-bold">Ad Complete!</p>
+                </motion.div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            className={`relative rounded-xl bg-gradient-to-br ${colorClass} aspect-video flex flex-col items-center justify-center text-white overflow-hidden`}
+          >
+            <AnimatePresence mode="wait">
+              {completed ? (
+                <motion.div
+                  key="done"
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="flex flex-col items-center gap-2"
+                >
+                  <CheckCircle className="w-16 h-16" />
+                  <p className="text-xl font-bold">Ad Complete!</p>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="ad"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="flex flex-col items-center gap-3 px-8 text-center"
+                >
+                  <p className="text-xs uppercase tracking-widest opacity-70">
+                    Sponsored
+                  </p>
+                  <p className="text-2xl font-bold">{ad?.title}</p>
+                  <p className="text-sm opacity-80">{ad?.description}</p>
+                  <p className="text-xs opacity-60 mt-1">{ad?.category}</p>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-          {!completed && (
-            <div className="absolute bottom-3 right-3 bg-black/50 rounded-full px-2.5 py-0.5 text-sm font-mono font-bold">
-              {timeLeft}s
-            </div>
-          )}
-        </div>
+            {!completed && (
+              <div className="absolute bottom-3 right-3 bg-black/50 rounded-full px-2.5 py-0.5 text-sm font-mono font-bold">
+                {timeLeft}s
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Progress */}
         <Progress value={progress} className="h-1.5" />

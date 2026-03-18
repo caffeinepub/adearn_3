@@ -3,9 +3,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, Eye, Play, Star, TrendingUp, Trophy } from "lucide-react";
+import { Clock, Eye, Play, Star, TrendingUp, Trophy, Zap } from "lucide-react";
 import { motion } from "motion/react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -18,18 +18,41 @@ import type { Ad } from "../backend.d";
 import { AdWatchModal } from "../components/AdWatchModal";
 import { useAds, useLeaderboard, useProfile } from "../hooks/useQueries";
 
-const MOCK_CHART_DATA = [
-  { day: "Mon", points: 120 },
-  { day: "Tue", points: 240 },
-  { day: "Wed", points: 80 },
-  { day: "Thu", points: 310 },
-  { day: "Fri", points: 180 },
-  { day: "Sat", points: 420 },
-  { day: "Sun", points: 260 },
-];
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function buildChartData(
+  adsHistory: Array<{ timestamp: bigint; points: bigint }> | undefined,
+) {
+  const now = new Date();
+  const days: { day: string; points: number; dateKey: string }[] = [];
+
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dateKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const label = i === 0 ? "Today" : DAY_LABELS[d.getDay()];
+    days.push({ day: label, points: 0, dateKey });
+  }
+
+  if (!adsHistory) return days;
+
+  for (const h of adsHistory) {
+    const ms = Number(h.timestamp) / 1_000_000;
+    const d = new Date(ms);
+    const dateKey = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    const entry = days.find((x) => x.dateKey === dateKey);
+    if (entry) {
+      entry.points += Number(h.points);
+    }
+  }
+
+  return days;
+}
 
 export function DashboardPage() {
-  const { data: profile, isLoading: profileLoading } = useProfile();
+  const { data: profile, isLoading: profileLoading } = useProfile({
+    refetchInterval: 10_000,
+  });
   const { data: ads, isLoading: adsLoading } = useAds();
   const { data: leaderboard } = useLeaderboard();
   const [watchingAd, setWatchingAd] = useState<Ad | null>(null);
@@ -47,6 +70,23 @@ export function DashboardPage() {
     const idx = leaderboard.findIndex((p) => p.username === profile.username);
     if (idx !== -1) rank = `#${idx + 1}`;
   }
+
+  const chartData = useMemo(
+    () => buildChartData(profile?._adsHistory),
+    [profile?._adsHistory],
+  );
+
+  const todayPoints = useMemo(() => {
+    if (!profile?._adsHistory) return 0;
+    const now = new Date();
+    const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+    return profile._adsHistory.reduce((sum, h) => {
+      const ms = Number(h.timestamp) / 1_000_000;
+      const d = new Date(ms);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      return key === todayKey ? sum + Number(h.points) : sum;
+    }, 0);
+  }, [profile?._adsHistory]);
 
   return (
     <>
@@ -265,44 +305,65 @@ export function DashboardPage() {
           <div className="lg:col-span-2 space-y-4">
             <Card className="shadow-card">
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-primary" />
-                  Your Earnings Tracker
+                <CardTitle className="text-sm font-semibold flex items-center gap-2 flex-wrap">
+                  <span className="flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-primary" />
+                    Real-Time Earnings Tracker
+                  </span>
+                  {!profileLoading && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-auto text-xs flex items-center gap-1 bg-success/10 text-success border-success/20"
+                      data-ocid="dashboard.today_points.badge"
+                    >
+                      <Zap className="w-3 h-3" />
+                      Today: {todayPoints} pts
+                    </Badge>
+                  )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={160}>
-                  <BarChart
-                    data={MOCK_CHART_DATA}
-                    margin={{ top: 4, right: 4, left: -28, bottom: 0 }}
-                  >
-                    <XAxis
-                      dataKey="day"
-                      tick={{ fontSize: 11, fill: "#6B7280" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: "#6B7280" }}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <RechartTooltip
-                      contentStyle={{
-                        background: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: 8,
-                        fontSize: 12,
-                      }}
-                      cursor={{ fill: "rgba(47,111,228,0.06)" }}
-                    />
-                    <Bar
-                      dataKey="points"
-                      fill="#2F6FE4"
-                      radius={[4, 4, 0, 0]}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
+                {profileLoading ? (
+                  <Skeleton className="w-full h-40 rounded-lg" />
+                ) : (
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart
+                      data={chartData}
+                      margin={{ top: 4, right: 4, left: -28, bottom: 0 }}
+                    >
+                      <XAxis
+                        dataKey="day"
+                        tick={{ fontSize: 11, fill: "#6B7280" }}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 11, fill: "#6B7280" }}
+                        axisLine={false}
+                        tickLine={false}
+                        allowDecimals={false}
+                      />
+                      <RechartTooltip
+                        contentStyle={{
+                          background: "white",
+                          border: "1px solid #e5e7eb",
+                          borderRadius: 8,
+                          fontSize: 12,
+                        }}
+                        cursor={{ fill: "rgba(47,111,228,0.06)" }}
+                        formatter={(value: number) => [
+                          `${value} pts`,
+                          "Points",
+                        ]}
+                      />
+                      <Bar
+                        dataKey="points"
+                        fill="#2F6FE4"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </CardContent>
             </Card>
 

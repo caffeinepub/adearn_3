@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Clock, Filter, Play } from "lucide-react";
+import { Clock, Filter, Play, Tv2 } from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import type { Ad } from "../backend.d";
@@ -24,7 +24,7 @@ export function EarnPage() {
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
-  const activeAds = (ads ?? SAMPLE_ADS).filter((a) => a.isActive);
+  const activeAds = (ads ?? []).filter((a) => a.isActive);
   const categories = [...new Set(activeAds.map((a) => a.category))];
 
   const filtered = activeAds.filter((a) => {
@@ -125,9 +125,14 @@ export function EarnPage() {
                         <Clock className="w-3.5 h-3.5" />
                         {Number(ad.duration)}s
                       </div>
-                      <span className="text-sm font-bold text-success">
-                        +{Number(ad.rewardPoints)} pts
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {ad.videoUrl && (
+                          <Tv2 className="w-3.5 h-3.5 text-muted-foreground" />
+                        )}
+                        <span className="text-sm font-bold text-success">
+                          +{Number(ad.rewardPoints)} pts
+                        </span>
+                      </div>
                     </div>
                     <Button
                       size="sm"
@@ -141,6 +146,14 @@ export function EarnPage() {
                 </Card>
               </motion.div>
             ))}
+          </div>
+        ) : !isLoading && activeAds.length === 0 ? (
+          <div className="text-center py-20" data-ocid="earn.ads.empty_state">
+            <Tv2 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-base font-semibold text-foreground mb-1">
+              No ads available right now.
+            </p>
+            <p className="text-sm text-muted-foreground">Check back soon!</p>
           </div>
         ) : (
           <div className="text-center py-16" data-ocid="earn.ads.empty_state">
@@ -159,66 +172,3 @@ export function EarnPage() {
     </main>
   );
 }
-
-const SAMPLE_ADS: Ad[] = [
-  {
-    id: 1n,
-    title: "Spotify Premium \u2014 3 Months Free",
-    description:
-      "Listen without limits. Try Spotify Premium and enjoy ad-free music, offline listening, and more.",
-    duration: 30n,
-    rewardPoints: 50n,
-    category: "Entertainment",
-    isActive: true,
-  },
-  {
-    id: 2n,
-    title: "Amazon AWS Cloud Hosting",
-    description:
-      "Scale your startup with AWS. Get 12 months free and start building on the world's most popular cloud.",
-    duration: 45n,
-    rewardPoints: 80n,
-    category: "Technology",
-    isActive: true,
-  },
-  {
-    id: 3n,
-    title: "Nike Air Max \u2014 New Collection",
-    description:
-      "Step into comfort. Explore the new Nike Air Max 2026 collection with cutting-edge cushioning technology.",
-    duration: 20n,
-    rewardPoints: 35n,
-    category: "Lifestyle",
-    isActive: true,
-  },
-  {
-    id: 4n,
-    title: "Robinhood \u2014 Zero-Fee Trading",
-    description:
-      "Invest in stocks, crypto, and ETFs commission-free. Start with as little as $1.",
-    duration: 60n,
-    rewardPoints: 120n,
-    category: "Finance",
-    isActive: true,
-  },
-  {
-    id: 5n,
-    title: "Headspace \u2014 Meditation App",
-    description:
-      "Reduce stress and sleep better with guided meditation. 30 days free for new users.",
-    duration: 30n,
-    rewardPoints: 50n,
-    category: "Health",
-    isActive: true,
-  },
-  {
-    id: 6n,
-    title: "Tesla Model 3 \u2014 Test Drive",
-    description:
-      "Experience the future of driving. Book a free test drive at your local Tesla showroom.",
-    duration: 45n,
-    rewardPoints: 90n,
-    category: "Technology",
-    isActive: true,
-  },
-];

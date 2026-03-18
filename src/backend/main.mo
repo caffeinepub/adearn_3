@@ -2,16 +2,19 @@ import Array "mo:core/Array";
 import Map "mo:core/Map";
 import Time "mo:core/Time";
 import Nat "mo:core/Nat";
-import Text "mo:core/Text";
+import List "mo:core/List";
 import Int "mo:core/Int";
 import Order "mo:core/Order";
-import List "mo:core/List";
+import Text "mo:core/Text";
 import Runtime "mo:core/Runtime";
 import Principal "mo:core/Principal";
+
 import MixinAuthorization "authorization/MixinAuthorization";
 import AccessControl "authorization/access-control";
 
+
 actor {
+  // Types from OpenAPI
   type RedemptionType = {
     #giftcard;
     #cashout;
@@ -54,13 +57,25 @@ actor {
     rewardPoints : Nat;
     category : Text;
     isActive : Bool;
+    videoUrl : ?Text;
   };
 
+  type UpiWithdrawalRequest = {
+    id : Nat;
+    userId : Principal;
+    upiId : Text;
+    amount : Nat;
+    status : { #pending; #approved; #rejected };
+    timestamp : Int;
+  };
+
+  // Variables with persistent state
   var currentAdId = 1;
   var currentRedemptionId = 1;
-
+  var currentUpiWithdrawalId = 1;
   let persistentProfiles = Map.empty<Principal, Profile>();
   let persistentAds = Map.empty<Nat, Ad>();
+  let upiWithdrawals = Map.empty<Nat, UpiWithdrawalRequest>();
 
   // Map from principal to a map of adId to last watched timestamp
   let adWatchHistory = Map.empty<Principal, Map.Map<Nat, Int>>();
@@ -200,7 +215,7 @@ actor {
     if (limit == 0) { [] } else { profilesArray.sliceToArray(0, limit) };
   };
 
-  public shared ({ caller }) func addAd(title : Text, description : Text, duration : Nat, rewardPoints : Nat, category : Text) : async Nat {
+  public shared ({ caller }) func addAd(title : Text, description : Text, duration : Nat, rewardPoints : Nat, category : Text, videoUrl : ?Text) : async Nat {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
@@ -212,13 +227,14 @@ actor {
       rewardPoints;
       category;
       isActive = true;
+      videoUrl;
     };
     persistentAds.add(currentAdId, ad);
     currentAdId += 1;
     ad.id;
   };
 
-  public shared ({ caller }) func updateAd(id : Nat, title : Text, description : Text, duration : Nat, rewardPoints : Nat, category : Text) : async () {
+  public shared ({ caller }) func updateAd(id : Nat, title : Text, description : Text, duration : Nat, rewardPoints : Nat, category : Text, videoUrl : ?Text) : async () {
     if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
       Runtime.trap("Unauthorized: Only admins can perform this action");
     };
@@ -234,6 +250,7 @@ actor {
       rewardPoints;
       category;
       isActive = oldAd.isActive;
+      videoUrl;
     };
     persistentAds.add(id, newAd);
   };
@@ -255,5 +272,88 @@ actor {
       Runtime.trap("Unauthorized: Only users can save profiles");
     };
     persistentAds.values().toArray();
+  };
+
+  // UPI Withdrawal Methods
+
+  public shared ({ caller }) func submitUpiWithdrawal(upiId : Text, amount : Nat) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can submit withdrawals");
+    };
+
+    let profile = switch (persistentProfiles.get(caller)) {
+      case (null) { Runtime.trap("Profile not found") };
+      case (?p) { p };
+    };
+
+    if (amount > profile.balance) {
+      Runtime.trap("Insufficient balance");
+    };
+
+    let newRequest : UpiWithdrawalRequest = {
+      id = currentUpiWithdrawalId;
+      userId = caller;
+      upiId;
+      amount;
+      status = #pending;
+      timestamp = Time.now();
+    };
+    currentUpiWithdrawalId += 1;
+    upiWithdrawals.add(newRequest.id, newRequest);
+
+    // Deduct balance immediately
+    let updatedProfile = { profile with balance = profile.balance - amount };
+    persistentProfiles.add(caller, updatedProfile);
+  };
+
+  public query ({ caller }) func getMyUpiWithdrawals() : async [UpiWithdrawalRequest] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #user))) {
+      Runtime.trap("Unauthorized: Only users can view withdrawals");
+    };
+
+    let withdrawalsArray = upiWithdrawals.values().toArray();
+    let filtered = withdrawalsArray.filter(
+      func(w) {
+        w.userId == caller;
+      }
+    );
+    filtered;
+  };
+
+  public query ({ caller }) func getAllUpiWithdrawals() : async [UpiWithdrawalRequest] {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can view all withdrawals");
+    };
+    upiWithdrawals.values().toArray();
+  };
+
+  public shared ({ caller }) func updateUpiWithdrawalStatus(id : Nat, status : { #pending; #approved; #rejected }) : async () {
+    if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+      Runtime.trap("Unauthorized: Only admins can update withdrawal status");
+    };
+
+    let request = switch (upiWithdrawals.get(id)) {
+      case (null) { Runtime.trap("Withdrawal request not found") };
+      case (?r) { r };
+    };
+
+    // Only allow status change if current status is pending
+    if (request.status != #pending) {
+      Runtime.trap("Cannot update a non-pending withdrawal");
+    };
+
+    let updatedRequest = { request with status };
+    upiWithdrawals.add(id, updatedRequest);
+
+    // If rejected, refund the amount to user's profile
+    if (status == #rejected) {
+      let _ = switch (persistentProfiles.get(request.userId)) {
+        case (null) { () }; // If user not found, just ignore refund
+        case (?p) {
+          let updatedProfile = { p with balance = p.balance + request.amount };
+          persistentProfiles.add(request.userId, updatedProfile);
+        };
+      };
+    };
   };
 };

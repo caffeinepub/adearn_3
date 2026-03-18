@@ -21,6 +21,19 @@ export const Ad = IDL.Record({
   'description' : IDL.Text,
   'isActive' : IDL.Bool,
   'category' : IDL.Text,
+  'videoUrl' : IDL.Opt(IDL.Text),
+});
+export const UpiWithdrawalRequest = IDL.Record({
+  'id' : IDL.Nat,
+  'status' : IDL.Variant({
+    'pending' : IDL.Null,
+    'approved' : IDL.Null,
+    'rejected' : IDL.Null,
+  }),
+  'userId' : IDL.Principal,
+  'timestamp' : IDL.Int,
+  'upiId' : IDL.Text,
+  'amount' : IDL.Nat,
 });
 export const RedemptionType = IDL.Variant({
   'cashout' : IDL.Null,
@@ -50,22 +63,53 @@ export const Profile = IDL.Record({
 export const idlService = IDL.Service({
   '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
   'addAd' : IDL.Func(
-      [IDL.Text, IDL.Text, IDL.Nat, IDL.Nat, IDL.Text],
+      [IDL.Text, IDL.Text, IDL.Nat, IDL.Nat, IDL.Text, IDL.Opt(IDL.Text)],
       [IDL.Nat],
       [],
     ),
   'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
   'deactivateAd' : IDL.Func([IDL.Nat], [], []),
   'getAds' : IDL.Func([], [IDL.Vec(Ad)], ['query']),
+  'getAllUpiWithdrawals' : IDL.Func(
+      [],
+      [IDL.Vec(UpiWithdrawalRequest)],
+      ['query'],
+    ),
   'getCallerUserProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
   'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
   'getLeaderboard' : IDL.Func([], [IDL.Vec(Profile)], ['query']),
+  'getMyUpiWithdrawals' : IDL.Func(
+      [],
+      [IDL.Vec(UpiWithdrawalRequest)],
+      ['query'],
+    ),
   'getUserProfile' : IDL.Func([IDL.Principal], [IDL.Opt(Profile)], ['query']),
   'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
   'redeemPoints' : IDL.Func([RedemptionType, IDL.Nat], [], []),
   'saveCallerUserProfile' : IDL.Func([Profile], [], []),
+  'submitUpiWithdrawal' : IDL.Func([IDL.Text, IDL.Nat], [], []),
   'updateAd' : IDL.Func(
-      [IDL.Nat, IDL.Text, IDL.Text, IDL.Nat, IDL.Nat, IDL.Text],
+      [
+        IDL.Nat,
+        IDL.Text,
+        IDL.Text,
+        IDL.Nat,
+        IDL.Nat,
+        IDL.Text,
+        IDL.Opt(IDL.Text),
+      ],
+      [],
+      [],
+    ),
+  'updateUpiWithdrawalStatus' : IDL.Func(
+      [
+        IDL.Nat,
+        IDL.Variant({
+          'pending' : IDL.Null,
+          'approved' : IDL.Null,
+          'rejected' : IDL.Null,
+        }),
+      ],
       [],
       [],
     ),
@@ -88,6 +132,19 @@ export const idlFactory = ({ IDL }) => {
     'description' : IDL.Text,
     'isActive' : IDL.Bool,
     'category' : IDL.Text,
+    'videoUrl' : IDL.Opt(IDL.Text),
+  });
+  const UpiWithdrawalRequest = IDL.Record({
+    'id' : IDL.Nat,
+    'status' : IDL.Variant({
+      'pending' : IDL.Null,
+      'approved' : IDL.Null,
+      'rejected' : IDL.Null,
+    }),
+    'userId' : IDL.Principal,
+    'timestamp' : IDL.Int,
+    'upiId' : IDL.Text,
+    'amount' : IDL.Nat,
   });
   const RedemptionType = IDL.Variant({
     'cashout' : IDL.Null,
@@ -117,22 +174,53 @@ export const idlFactory = ({ IDL }) => {
   return IDL.Service({
     '_initializeAccessControlWithSecret' : IDL.Func([IDL.Text], [], []),
     'addAd' : IDL.Func(
-        [IDL.Text, IDL.Text, IDL.Nat, IDL.Nat, IDL.Text],
+        [IDL.Text, IDL.Text, IDL.Nat, IDL.Nat, IDL.Text, IDL.Opt(IDL.Text)],
         [IDL.Nat],
         [],
       ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'deactivateAd' : IDL.Func([IDL.Nat], [], []),
     'getAds' : IDL.Func([], [IDL.Vec(Ad)], ['query']),
+    'getAllUpiWithdrawals' : IDL.Func(
+        [],
+        [IDL.Vec(UpiWithdrawalRequest)],
+        ['query'],
+      ),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(Profile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getLeaderboard' : IDL.Func([], [IDL.Vec(Profile)], ['query']),
+    'getMyUpiWithdrawals' : IDL.Func(
+        [],
+        [IDL.Vec(UpiWithdrawalRequest)],
+        ['query'],
+      ),
     'getUserProfile' : IDL.Func([IDL.Principal], [IDL.Opt(Profile)], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'redeemPoints' : IDL.Func([RedemptionType, IDL.Nat], [], []),
     'saveCallerUserProfile' : IDL.Func([Profile], [], []),
+    'submitUpiWithdrawal' : IDL.Func([IDL.Text, IDL.Nat], [], []),
     'updateAd' : IDL.Func(
-        [IDL.Nat, IDL.Text, IDL.Text, IDL.Nat, IDL.Nat, IDL.Text],
+        [
+          IDL.Nat,
+          IDL.Text,
+          IDL.Text,
+          IDL.Nat,
+          IDL.Nat,
+          IDL.Text,
+          IDL.Opt(IDL.Text),
+        ],
+        [],
+        [],
+      ),
+    'updateUpiWithdrawalStatus' : IDL.Func(
+        [
+          IDL.Nat,
+          IDL.Variant({
+            'pending' : IDL.Null,
+            'approved' : IDL.Null,
+            'rejected' : IDL.Null,
+          }),
+        ],
         [],
         [],
       ),

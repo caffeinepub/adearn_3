@@ -13,6 +13,20 @@ export interface EarningsHistory {
     timestamp: bigint;
     points: bigint;
 }
+export interface Redemption {
+    id: bigint;
+    _type: RedemptionType;
+    timestamp: bigint;
+    amount: bigint;
+}
+export interface UpiWithdrawalRequest {
+    id: bigint;
+    status: Variant_pending_approved_rejected;
+    userId: Principal;
+    timestamp: bigint;
+    upiId: string;
+    amount: bigint;
+}
 export interface Profile {
     username: string;
     balance: bigint;
@@ -29,12 +43,7 @@ export interface Ad {
     description: string;
     isActive: boolean;
     category: string;
-}
-export interface Redemption {
-    id: bigint;
-    _type: RedemptionType;
-    timestamp: bigint;
-    amount: bigint;
+    videoUrl?: string;
 }
 export enum RedemptionType {
     cashout = "cashout",
@@ -45,18 +54,27 @@ export enum UserRole {
     user = "user",
     guest = "guest"
 }
+export enum Variant_pending_approved_rejected {
+    pending = "pending",
+    approved = "approved",
+    rejected = "rejected"
+}
 export interface backendInterface {
-    addAd(title: string, description: string, duration: bigint, rewardPoints: bigint, category: string): Promise<bigint>;
+    addAd(title: string, description: string, duration: bigint, rewardPoints: bigint, category: string, videoUrl: string | null): Promise<bigint>;
     assignCallerUserRole(user: Principal, role: UserRole): Promise<void>;
     deactivateAd(id: bigint): Promise<void>;
     getAds(): Promise<Array<Ad>>;
+    getAllUpiWithdrawals(): Promise<Array<UpiWithdrawalRequest>>;
     getCallerUserProfile(): Promise<Profile | null>;
     getCallerUserRole(): Promise<UserRole>;
     getLeaderboard(): Promise<Array<Profile>>;
+    getMyUpiWithdrawals(): Promise<Array<UpiWithdrawalRequest>>;
     getUserProfile(user: Principal): Promise<Profile | null>;
     isCallerAdmin(): Promise<boolean>;
     redeemPoints(_type: RedemptionType, amount: bigint): Promise<void>;
     saveCallerUserProfile(profile: Profile): Promise<void>;
-    updateAd(id: bigint, title: string, description: string, duration: bigint, rewardPoints: bigint, category: string): Promise<void>;
+    submitUpiWithdrawal(upiId: string, amount: bigint): Promise<void>;
+    updateAd(id: bigint, title: string, description: string, duration: bigint, rewardPoints: bigint, category: string, videoUrl: string | null): Promise<void>;
+    updateUpiWithdrawalStatus(id: bigint, status: Variant_pending_approved_rejected): Promise<void>;
     watchAd(adId: bigint): Promise<void>;
 }

@@ -1,5 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Ad, Profile, RedemptionType } from "../backend.d";
+import type {
+  Ad,
+  Profile,
+  RedemptionType,
+  UpiWithdrawalRequest,
+  Variant_pending_approved_rejected,
+} from "../backend.d";
 import { useActor } from "./useActor";
 
 export function useAds() {
@@ -14,7 +20,7 @@ export function useAds() {
   });
 }
 
-export function useProfile() {
+export function useProfile(options?: { refetchInterval?: number }) {
   const { actor, isFetching } = useActor();
   return useQuery<Profile | null>({
     queryKey: ["profile"],
@@ -23,6 +29,7 @@ export function useProfile() {
       return actor.getCallerUserProfile();
     },
     enabled: !!actor && !isFetching,
+    ...(options ?? {}),
   });
 }
 
@@ -92,6 +99,7 @@ export function useAddAd() {
       duration: bigint;
       rewardPoints: bigint;
       category: string;
+      videoUrl: string | null;
     }) => {
       if (!actor) throw new Error("No actor");
       return actor.addAd(
@@ -100,6 +108,7 @@ export function useAddAd() {
         data.duration,
         data.rewardPoints,
         data.category,
+        data.videoUrl,
       );
     },
     onSuccess: () => {
@@ -119,6 +128,7 @@ export function useUpdateAd() {
       duration: bigint;
       rewardPoints: bigint;
       category: string;
+      videoUrl: string | null;
     }) => {
       if (!actor) throw new Error("No actor");
       return actor.updateAd(
@@ -128,6 +138,7 @@ export function useUpdateAd() {
         data.duration,
         data.rewardPoints,
         data.category,
+        data.videoUrl,
       );
     },
     onSuccess: () => {
@@ -160,6 +171,66 @@ export function useSaveProfile() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+}
+
+export function useUpiWithdrawals() {
+  const { actor, isFetching } = useActor();
+  return useQuery<UpiWithdrawalRequest[]>({
+    queryKey: ["upiWithdrawals"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyUpiWithdrawals();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useAllUpiWithdrawals() {
+  const { actor, isFetching } = useActor();
+  return useQuery<UpiWithdrawalRequest[]>({
+    queryKey: ["allUpiWithdrawals"],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getAllUpiWithdrawals();
+    },
+    enabled: !!actor && !isFetching,
+  });
+}
+
+export function useSubmitUpiWithdrawal() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      upiId,
+      amount,
+    }: { upiId: string; amount: bigint }) => {
+      if (!actor) throw new Error("No actor");
+      return actor.submitUpiWithdrawal(upiId, amount);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["upiWithdrawals"] });
+      qc.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+}
+
+export function useUpdateUpiWithdrawalStatus() {
+  const { actor } = useActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      status,
+    }: { id: bigint; status: Variant_pending_approved_rejected }) => {
+      if (!actor) throw new Error("No actor");
+      return actor.updateUpiWithdrawalStatus(id, status);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["upiWithdrawals"] });
+      qc.invalidateQueries({ queryKey: ["allUpiWithdrawals"] });
     },
   });
 }

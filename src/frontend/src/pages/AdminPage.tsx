@@ -12,17 +12,28 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Pencil, Plus, PowerOff, ShieldAlert } from "lucide-react";
+import {
+  CheckCircle,
+  Loader2,
+  Pencil,
+  Plus,
+  PowerOff,
+  ShieldAlert,
+  XCircle,
+} from "lucide-react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Ad } from "../backend.d";
+import { Variant_pending_approved_rejected } from "../backend.d";
 import {
   useAddAd,
   useAds,
+  useAllUpiWithdrawals,
   useDeactivateAd,
   useIsAdmin,
   useUpdateAd,
+  useUpdateUpiWithdrawalStatus,
 } from "../hooks/useQueries";
 
 type AdForm = {
@@ -31,6 +42,7 @@ type AdForm = {
   duration: string;
   rewardPoints: string;
   category: string;
+  videoUrl: string;
 };
 
 const EMPTY_FORM: AdForm = {
@@ -39,14 +51,24 @@ const EMPTY_FORM: AdForm = {
   duration: "30",
   rewardPoints: "50",
   category: "Technology",
+  videoUrl: "",
+};
+
+const STATUS_STYLES: Record<string, string> = {
+  pending: "bg-amber-50 text-amber-700 border-amber-200",
+  approved: "bg-green-50 text-green-700 border-green-200",
+  rejected: "bg-red-50 text-red-700 border-red-200",
 };
 
 export function AdminPage() {
   const { data: ads, isLoading } = useAds();
   const { data: isAdmin } = useIsAdmin();
+  const { data: withdrawals, isLoading: withdrawalsLoading } =
+    useAllUpiWithdrawals();
   const addAd = useAddAd();
   const updateAd = useUpdateAd();
   const deactivateAd = useDeactivateAd();
+  const updateWithdrawalStatus = useUpdateUpiWithdrawalStatus();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAd, setEditingAd] = useState<Ad | null>(null);
@@ -66,6 +88,7 @@ export function AdminPage() {
       duration: String(Number(ad.duration)),
       rewardPoints: String(Number(ad.rewardPoints)),
       category: ad.category,
+      videoUrl: ad.videoUrl ?? "",
     });
     setDialogOpen(true);
   }
@@ -77,6 +100,7 @@ export function AdminPage() {
       duration: BigInt(Number.parseInt(form.duration)),
       rewardPoints: BigInt(Number.parseInt(form.rewardPoints)),
       category: form.category,
+      videoUrl: form.videoUrl || null,
     };
     try {
       if (editingAd) {
@@ -98,6 +122,20 @@ export function AdminPage() {
       toast.success("Ad deactivated");
     } catch {
       toast.error("Failed to deactivate ad");
+    }
+  }
+
+  async function handleWithdrawalAction(
+    id: bigint,
+    status: Variant_pending_approved_rejected,
+  ) {
+    try {
+      await updateWithdrawalStatus.mutateAsync({ id, status });
+      toast.success(
+        `Withdrawal ${status === Variant_pending_approved_rejected.approved ? "approved" : "rejected"}.`,
+      );
+    } catch {
+      toast.error("Failed to update withdrawal status");
     }
   }
 
@@ -130,7 +168,7 @@ export function AdminPage() {
           <div>
             <h1 className="text-2xl font-bold text-foreground">Admin Panel</h1>
             <p className="text-muted-foreground text-sm mt-1">
-              Manage ads on the platform.
+              Manage ads and withdrawal requests.
             </p>
           </div>
           <Button
@@ -142,6 +180,7 @@ export function AdminPage() {
           </Button>
         </div>
 
+        {/* Ads List */}
         <Card className="shadow-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-semibold">
@@ -173,6 +212,14 @@ export function AdminPage() {
                         <Badge variant="outline" className="text-xs">
                           {ad.category}
                         </Badge>
+                        {ad.videoUrl && (
+                          <Badge
+                            variant="outline"
+                            className="text-xs bg-blue-50 text-blue-700 border-blue-200"
+                          >
+                            Video
+                          </Badge>
+                        )}
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5 truncate">
                         {ad.description}
@@ -213,6 +260,95 @@ export function AdminPage() {
                 data-ocid="admin.ads.empty_state"
               >
                 No ads yet. Create the first one!
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* UPI Withdrawal Requests */}
+        <Card className="shadow-card">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">
+              UPI Withdrawal Requests ({(withdrawals ?? []).length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {withdrawalsLoading ? (
+              [1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-14 w-full mb-3 rounded-lg" />
+              ))
+            ) : (withdrawals ?? []).length > 0 ? (
+              <div className="space-y-3">
+                {(withdrawals ?? []).map((req, idx) => (
+                  <div
+                    key={String(req.id)}
+                    className="flex items-center gap-3 p-3 rounded-xl border border-border hover:bg-muted/50 transition-colors"
+                    data-ocid={`admin.withdrawal.item.${idx + 1}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-semibold">{req.upiId}</p>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs capitalize ${STATUS_STYLES[req.status] ?? ""}`}
+                        >
+                          {req.status}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {Number(req.amount)} pts &middot;{" "}
+                        {new Date(
+                          Number(req.timestamp) / 1_000_000,
+                        ).toLocaleDateString()}{" "}
+                        &middot; User: {req.userId.toString().slice(0, 10)}...
+                      </p>
+                    </div>
+                    {req.status ===
+                      Variant_pending_approved_rejected.pending && (
+                      <div className="flex gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-700 border-green-200 hover:bg-green-50"
+                          onClick={() =>
+                            handleWithdrawalAction(
+                              req.id,
+                              Variant_pending_approved_rejected.approved,
+                            )
+                          }
+                          disabled={updateWithdrawalStatus.isPending}
+                          data-ocid="admin.withdrawal.confirm_button"
+                        >
+                          <CheckCircle className="w-3.5 h-3.5 mr-1" />
+                          Approve
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-700 border-red-200 hover:bg-red-50"
+                          onClick={() =>
+                            handleWithdrawalAction(
+                              req.id,
+                              Variant_pending_approved_rejected.rejected,
+                            )
+                          }
+                          disabled={updateWithdrawalStatus.isPending}
+                          data-ocid="admin.withdrawal.cancel_button"
+                        >
+                          <XCircle className="w-3.5 h-3.5 mr-1" />
+                          Reject
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p
+                className="text-sm text-muted-foreground text-center py-8"
+                data-ocid="admin.withdrawals.empty_state"
+              >
+                No withdrawal requests yet.
               </p>
             )}
           </CardContent>
@@ -294,6 +430,22 @@ export function AdminPage() {
                 className="mt-1"
                 data-ocid="admin.ad_category.input"
               />
+            </div>
+            <div>
+              <Label htmlFor="ad-video">Video URL (optional)</Label>
+              <Input
+                id="ad-video"
+                value={form.videoUrl}
+                onChange={(e) =>
+                  setForm((p) => ({ ...p, videoUrl: e.target.value }))
+                }
+                placeholder="YouTube embed or direct video URL"
+                className="mt-1"
+                data-ocid="admin.ad_video.input"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                YouTube embed URL format: https://www.youtube.com/embed/VIDEO_ID
+              </p>
             </div>
           </div>
           <DialogFooter>

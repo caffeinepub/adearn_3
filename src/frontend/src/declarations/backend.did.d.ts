@@ -18,6 +18,7 @@ export interface Ad {
   'description' : string,
   'isActive' : boolean,
   'category' : string,
+  'videoUrl' : [] | [string],
 }
 export interface EarningsHistory {
   'title' : string,
@@ -41,24 +42,49 @@ export interface Redemption {
 }
 export type RedemptionType = { 'cashout' : null } |
   { 'giftcard' : null };
+export interface UpiWithdrawalRequest {
+  'id' : bigint,
+  'status' : { 'pending' : null } |
+    { 'approved' : null } |
+    { 'rejected' : null },
+  'userId' : Principal,
+  'timestamp' : bigint,
+  'upiId' : string,
+  'amount' : bigint,
+}
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
 export interface _SERVICE {
   '_initializeAccessControlWithSecret' : ActorMethod<[string], undefined>,
-  'addAd' : ActorMethod<[string, string, bigint, bigint, string], bigint>,
+  'addAd' : ActorMethod<
+    [string, string, bigint, bigint, string, [] | [string]],
+    bigint
+  >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'deactivateAd' : ActorMethod<[bigint], undefined>,
   'getAds' : ActorMethod<[], Array<Ad>>,
+  'getAllUpiWithdrawals' : ActorMethod<[], Array<UpiWithdrawalRequest>>,
   'getCallerUserProfile' : ActorMethod<[], [] | [Profile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getLeaderboard' : ActorMethod<[], Array<Profile>>,
+  'getMyUpiWithdrawals' : ActorMethod<[], Array<UpiWithdrawalRequest>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [Profile]>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'redeemPoints' : ActorMethod<[RedemptionType, bigint], undefined>,
   'saveCallerUserProfile' : ActorMethod<[Profile], undefined>,
+  'submitUpiWithdrawal' : ActorMethod<[string, bigint], undefined>,
   'updateAd' : ActorMethod<
-    [bigint, string, string, bigint, bigint, string],
+    [bigint, string, string, bigint, bigint, string, [] | [string]],
+    undefined
+  >,
+  'updateUpiWithdrawalStatus' : ActorMethod<
+    [
+      bigint,
+      { 'pending' : null } |
+        { 'approved' : null } |
+        { 'rejected' : null },
+    ],
     undefined
   >,
   'watchAd' : ActorMethod<[bigint], undefined>,
